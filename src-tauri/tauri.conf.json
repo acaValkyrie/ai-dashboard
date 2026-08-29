@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AI Usage",
+  "version": "0.1.0",
+  "identifier": "dev.acavalkyrie.ai-dashboard",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [{ "title": "AI Usage", "width": 1180, "height": 820, "minWidth": 760, "minHeight": 640 }],
+    "security": { "csp": null }
+  },
+  "bundle": { "active": false }
+}

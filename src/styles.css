@@ -1,0 +1,38 @@
+:root { font-family: Inter, "Noto Sans JP", system-ui, sans-serif; color: #e5edf7; background: #0b111b; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 760px; min-height: 100vh; background: radial-gradient(circle at 10% 0%, #16243a 0, transparent 32%), #0b111b; }
+button { font: inherit; }
+main { width: min(1320px, calc(100% - 64px)); margin: 0 auto; padding: 42px 0 64px; }
+header, .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+header { margin-bottom: 42px; }
+h1, h2, h3, p { margin: 0; }
+h1 { font-size: 34px; letter-spacing: -0.04em; }
+h2 { font-size: 22px; margin-top: 4px; }
+h3 { font-size: 15px; }
+.eyebrow { color: #6f829b; font-size: 11px; font-weight: 700; letter-spacing: .16em; }
+header button, .tabs button { border: 1px solid #2b3b50; color: #b9c7d8; background: #121c2a; border-radius: 9px; padding: 9px 15px; cursor: pointer; }
+header button:hover, .tabs button:hover { border-color: #4b6687; color: white; }
+header button:disabled { opacity: .55; cursor: default; }
+section { margin-top: 30px; }
+.gauges { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 16px; }
+.gauge-card { min-width: 0; display: flex; align-items: center; gap: 17px; background: rgba(17, 27, 41, .88); border: 1px solid #1f3045; border-radius: 14px; padding: 20px; }
+.gauge { width: 82px; height: 82px; flex: 0 0 auto; border-radius: 50%; padding: 8px; }
+.gauge-center { width: 100%; height: 100%; border-radius: 50%; background: #111b29; display: grid; place-content: center; text-align: center; }
+.gauge-center strong { font-size: 22px; line-height: 1; }
+.gauge-center span { color: #71839a; font-size: 10px; margin-top: 5px; text-transform: uppercase; }
+.gauge-card p { color: #71839a; font-size: 12px; margin-top: 8px; }
+.chart-section { background: rgba(17, 27, 41, .88); border: 1px solid #1f3045; border-radius: 16px; padding: 24px; }
+.tabs { display: flex; background: #0d1520; border-radius: 10px; padding: 3px; }
+.tabs button { border: 0; background: transparent; padding: 7px 15px; }
+.tabs button.active { background: #24344a; color: white; }
+.chart-wrap { margin-top: 20px; }
+.chart { display: block; width: 100%; min-height: 280px; overflow: visible; }
+.grid-line { stroke: #263548; stroke-width: 1; }
+.axis-text { fill: #73859c; font-size: 11px; }
+.legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 18px; color: #8596ab; font-size: 12px; }
+.legend span { display: flex; align-items: center; gap: 6px; }
+.legend i { width: 8px; height: 8px; border-radius: 2px; }
+.footnote { text-align: right; color: #61738a; font-size: 11px; margin-top: 14px; }
+.notice { background: #302912; border: 1px solid #5c4d1d; color: #e8cc71; border-radius: 10px; padding: 11px 14px; margin: 10px 0; font-size: 13px; }
+.notice.error { background: #351a22; border-color: #743044; color: #f5a6b8; }
+@media (max-width: 1050px) { .gauges { grid-template-columns: repeat(2, 1fr); } }
