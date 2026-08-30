@@ -13,7 +13,20 @@ const SERIES: { key: keyof TokenValues; label: string; color: string }[] = [
 const number = new Intl.NumberFormat("ja-JP", { notation: "compact", maximumFractionDigits: 1 });
 const dateTime = new Intl.DateTimeFormat("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
-function Gauge({ title, limit }: { title: string; limit: RateLimit | null }) {
+function remainingTime(resetsAt: number, period: "five-hour" | "weekly", now: number) {
+  const minutes = Math.max(0, Math.ceil((resetsAt * 1000 - now) / 60_000));
+  if (period === "weekly" && minutes >= 24 * 60) {
+    return `残り${Math.floor(minutes / (24 * 60))}日`;
+  }
+  return `残り${Math.floor(minutes / 60)}時間${minutes % 60}分`;
+}
+
+function Gauge({ title, limit, period, now }: {
+  title: string;
+  limit: RateLimit | null;
+  period: "five-hour" | "weekly";
+  now: number;
+}) {
   const value = Math.min(100, Math.max(0, limit?.usedPercent ?? 0));
   const color = value >= 90 ? "#e06c75" : value >= 70 ? "#e5c07b" : "#61afef";
   return (
@@ -39,7 +52,7 @@ function Gauge({ title, limit }: { title: string; limit: RateLimit | null }) {
       <div>
         <h3>{title}</h3>
         <p>{limit?.resetsAt
-          ? `リセット ${dateTime.format(new Date(limit.resetsAt * 1000))}`
+          ? `リセット ${dateTime.format(new Date(limit.resetsAt * 1000))}（${remainingTime(limit.resetsAt, period, now)}）`
           : limit ? "リセット時刻は未取得" : "データ待ち"}</p>
       </div>
     </article>
@@ -105,6 +118,7 @@ function App() {
   const [selected, setSelected] = useState<"codex" | "claude">("codex");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
   const refreshing = useRef(false);
 
   const refresh = useCallback(async () => {
@@ -128,6 +142,11 @@ function App() {
     return () => window.clearInterval(timer);
   }, [refresh]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <main>
       {error && <div className="notice error">{error}</div>}
@@ -140,10 +159,10 @@ function App() {
           </button>
         </div>
         <div className="gauges">
-          <Gauge title="Codex · 5時間" limit={data?.codex.fiveHour ?? null} />
-          <Gauge title="Codex · 週次" limit={data?.codex.weekly ?? null} />
-          <Gauge title="Claude · 5時間" limit={data?.claude.fiveHour ?? null} />
-          <Gauge title="Claude · 週次" limit={data?.claude.weekly ?? null} />
+          <Gauge title="Codex · 5時間" limit={data?.codex.fiveHour ?? null} period="five-hour" now={now} />
+          <Gauge title="Codex · 週次" limit={data?.codex.weekly ?? null} period="weekly" now={now} />
+          <Gauge title="Claude · 5時間" limit={data?.claude.fiveHour ?? null} period="five-hour" now={now} />
+          <Gauge title="Claude · 週次" limit={data?.claude.weekly ?? null} period="weekly" now={now} />
         </div>
       </section>
       <section className="chart-section">
