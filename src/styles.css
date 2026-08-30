@@ -1,6 +1,6 @@
 :root { font-family: Inter, "Noto Sans JP", system-ui, sans-serif; color: #e5edf7; background: #0b111b; font-synthesis: none; }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 760px; min-height: 100vh; background: radial-gradient(circle at 10% 0%, #16243a 0, transparent 32%), #0b111b; }
+body { margin: 0; min-width: 760px; min-height: 100vh; background: #0b111b; }
 button { font: inherit; }
 main { width: min(1320px, calc(100% - 64px)); margin: 0 auto; padding: 42px 0 64px; }
 header, .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
@@ -15,13 +15,17 @@ header button:hover, .tabs button:hover { border-color: #4b6687; color: white; }
 header button:disabled { opacity: .55; cursor: default; }
 section { margin-top: 30px; }
 .gauges { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 16px; }
-.gauge-card { min-width: 0; display: flex; align-items: center; gap: 17px; background: rgba(17, 27, 41, .88); border: 1px solid #1f3045; border-radius: 14px; padding: 20px; }
-.gauge { width: 82px; height: 82px; flex: 0 0 auto; border-radius: 50%; padding: 8px; }
-.gauge-center { width: 100%; height: 100%; border-radius: 50%; background: #111b29; display: grid; place-content: center; text-align: center; }
+.gauge-card { min-width: 0; display: flex; align-items: center; gap: 17px; background: #111b29; border: 1px solid #1f3045; border-radius: 14px; padding: 20px; }
+.gauge { position: relative; width: 82px; height: 82px; flex: 0 0 auto; }
+.gauge svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.gauge circle { fill: none; stroke-width: 8; }
+.gauge-track { stroke: #263244; }
+.gauge-value { stroke-linecap: butt; }
+.gauge-center { position: absolute; inset: 8px; border-radius: 50%; background: #111b29; display: grid; place-content: center; text-align: center; }
 .gauge-center strong { font-size: 22px; line-height: 1; }
 .gauge-center span { color: #71839a; font-size: 10px; margin-top: 5px; text-transform: uppercase; }
 .gauge-card p { color: #71839a; font-size: 12px; margin-top: 8px; }
-.chart-section { background: rgba(17, 27, 41, .88); border: 1px solid #1f3045; border-radius: 16px; padding: 24px; }
+.chart-section { background: #111b29; border: 1px solid #1f3045; border-radius: 16px; padding: 24px; }
 .tabs { display: flex; background: #0d1520; border-radius: 10px; padding: 3px; }
 .tabs button { border: 0; background: transparent; padding: 7px 15px; }
 .tabs button.active { background: #24344a; color: white; }

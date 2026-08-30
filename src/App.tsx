@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { DashboardData, RateLimit, TokenValues, UsageBucket } from "./types";
 
@@ -18,7 +18,19 @@ function Gauge({ title, limit }: { title: string; limit: RateLimit | null }) {
   const color = value >= 90 ? "#fb7185" : value >= 70 ? "#fbbf24" : "#38bdf8";
   return (
     <article className="gauge-card">
-      <div className="gauge" style={{ background: `conic-gradient(${color} ${value * 3.6}deg, #263244 0deg)` }}>
+      <div className="gauge">
+        <svg viewBox="0 0 82 82" aria-hidden="true">
+          <circle className="gauge-track" cx="41" cy="41" r="34" pathLength="100" />
+          <circle
+            className="gauge-value"
+            cx="41"
+            cy="41"
+            r="34"
+            pathLength="100"
+            stroke={color}
+            strokeDasharray={`${value} 100`}
+          />
+        </svg>
         <div className="gauge-center">
           <strong>{limit ? `${Math.round(value)}%` : "—"}</strong>
           <span>used</span>
@@ -93,8 +105,11 @@ function App() {
   const [selected, setSelected] = useState<"codex" | "claude">("codex");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const refreshing = useRef(false);
 
   const refresh = useCallback(async () => {
+    if (refreshing.current) return;
+    refreshing.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -102,11 +117,16 @@ function App() {
     } catch (reason) {
       setError(String(reason));
     } finally {
+      refreshing.current = false;
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 10 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
 
   return (
     <main>
