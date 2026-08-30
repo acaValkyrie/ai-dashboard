@@ -1,13 +1,10 @@
 use chrono::{DateTime, Duration, Utc};
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
-use regex::Regex;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
 use std::time::Duration as StdDuration;
 use walkdir::WalkDir;
 
@@ -135,26 +132,50 @@ fn add_to_bucket(buckets: &mut [UsageBucket], timestamp: &str, tokens: &TokenVal
     }
 }
 
-fn jsonl_files(root: &Path) -> Vec<PathBuf> {
+fn jsonl_files(root: &Path, cutoff: DateTime<Utc>, include_newest: bool) -> Vec<PathBuf> {
     if !root.exists() {
         return Vec::new();
     }
-    WalkDir::new(root)
+    let files: Vec<(PathBuf, Option<DateTime<Utc>>)> = WalkDir::new(root)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|entry| {
             entry.file_type().is_file()
                 && entry.path().extension().is_some_and(|ext| ext == "jsonl")
         })
-        .map(|entry| entry.into_path())
+        .map(|entry| {
+            let modified = entry
+                .metadata()
+                .ok()
+                .and_then(|metadata| metadata.modified().ok())
+                .map(DateTime::<Utc>::from);
+            (entry.into_path(), modified)
+        })
+        .collect();
+    let newest = include_newest
+        .then(|| {
+            files
+                .iter()
+                .filter_map(|(path, modified)| modified.map(|time| (path, time)))
+                .max_by_key(|(_, time)| *time)
+                .map(|(path, _)| path.clone())
+        })
+        .flatten();
+    files
+        .into_iter()
+        .filter(|(path, modified)| {
+            modified.is_none_or(|time| time >= cutoff) || newest.as_ref() == Some(path)
+        })
+        .map(|(path, _)| path)
         .collect()
 }
 
 fn parse_codex(root: &Path, now: DateTime<Utc>, count: usize) -> ToolUsage {
     let mut buckets = empty_buckets(now, count);
+    let cutoff = now - Duration::minutes(BUCKET_MINUTES * count as i64 + 60);
     let mut latest_limits: Option<(DateTime<Utc>, Value)> = None;
     let mut seen_events = HashSet::new();
-    for path in jsonl_files(root) {
+    for path in jsonl_files(root, cutoff, true) {
         let Ok(file) = File::open(path) else { continue };
         for line in BufReader::new(file).lines().map_while(Result::ok) {
             let Ok(value) = serde_json::from_str::<Value>(&line) else {
@@ -209,8 +230,9 @@ fn parse_codex(root: &Path, now: DateTime<Utc>, count: usize) -> ToolUsage {
 
 fn parse_claude(root: &Path, now: DateTime<Utc>, count: usize) -> Vec<UsageBucket> {
     let mut buckets = empty_buckets(now, count);
+    let cutoff = now - Duration::minutes(BUCKET_MINUTES * count as i64 + 60);
     let mut seen = HashSet::new();
-    for path in jsonl_files(root) {
+    for path in jsonl_files(root, cutoff, false) {
         let Ok(file) = File::open(path) else { continue };
         for line in BufReader::new(file).lines().map_while(Result::ok) {
             let Ok(value) = serde_json::from_str::<Value>(&line) else {
@@ -236,100 +258,58 @@ fn parse_claude(root: &Path, now: DateTime<Utc>, count: usize) -> Vec<UsageBucke
     buckets
 }
 
-fn parse_claude_usage(text: &str) -> (Option<RateLimit>, Option<RateLimit>) {
-    let clean =
-        String::from_utf8_lossy(&strip_ansi_escapes::strip(text.as_bytes())).replace('\r', "\n");
-    let percent = Regex::new(r"(?i)(\d{1,3}(?:\.\d+)?)\s*%\s*(?:used)?").expect("valid regex");
-    let mut five_hour = None;
-    let mut weekly = None;
-    let mut section = "";
-    let mut lines_after_heading = 0_u8;
-    for line in clean.lines() {
-        let lower = line.to_lowercase();
-        if lower.contains("session") || lower.contains("5 hour") || lower.contains("5-hour") {
-            section = "five";
-            lines_after_heading = 0;
-            continue;
-        }
-        if lower.contains("week") || lower.contains("7 day") || lower.contains("7-day") {
-            section = "week";
-            lines_after_heading = 0;
-            continue;
-        }
-        if section.is_empty() || line.trim().is_empty() {
-            continue;
-        }
-        lines_after_heading += 1;
-        if lines_after_heading > 4 {
-            section = "";
-            continue;
-        }
-        if let Some(found) = percent
-            .captures(line)
-            .and_then(|capture| capture.get(1))
-            .and_then(|value| value.as_str().parse::<f64>().ok())
-        {
-            let limit = RateLimit {
-                used_percent: found,
-                resets_at: None,
-                source: "Claude /usage".into(),
-            };
-            if section == "five" && five_hour.is_none() {
-                five_hour = Some(limit);
-            } else if section == "week" && weekly.is_none() {
-                weekly = Some(limit);
-            }
-        }
-    }
-    (five_hour, weekly)
+fn parse_claude_limit(usage: &Value, key: &str) -> Option<RateLimit> {
+    let limit = usage.get(key)?;
+    let resets_at = limit
+        .get("resets_at")
+        .and_then(Value::as_str)
+        .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+        .map(|value| value.timestamp());
+    Some(RateLimit {
+        used_percent: limit.get("utilization")?.as_f64()?,
+        resets_at,
+        source: "Anthropic OAuth usage API".into(),
+    })
 }
 
-fn read_claude_usage() -> Result<(Option<RateLimit>, Option<RateLimit>), String> {
-    let pty = native_pty_system();
-    let pair = pty
-        .openpty(PtySize {
-            rows: 40,
-            cols: 140,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|error| error.to_string())?;
-    let mut command = CommandBuilder::new("claude");
-    command.arg("--model");
-    command.arg("sonnet");
-    let mut child = pair
-        .slave
-        .spawn_command(command)
-        .map_err(|error| error.to_string())?;
-    drop(pair.slave);
-    let mut reader = pair
-        .master
-        .try_clone_reader()
-        .map_err(|error| error.to_string())?;
-    let mut writer = pair
-        .master
-        .take_writer()
-        .map_err(|error| error.to_string())?;
-    let (sender, receiver) = mpsc::channel();
-    std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let _ = reader.read_to_end(&mut bytes);
-        let _ = sender.send(bytes);
-    });
-    std::thread::sleep(StdDuration::from_millis(1800));
-    writer
-        .write_all(b"/usage\r")
-        .map_err(|error| error.to_string())?;
-    writer.flush().map_err(|error| error.to_string())?;
-    std::thread::sleep(StdDuration::from_secs(4));
-    writer.write_all(&[3]).map_err(|error| error.to_string())?;
-    let _ = child.kill();
-    drop(writer);
-    drop(pair.master);
-    let bytes = receiver
-        .recv_timeout(StdDuration::from_secs(2))
-        .unwrap_or_default();
-    Ok(parse_claude_usage(&String::from_utf8_lossy(&bytes)))
+fn read_claude_limits(home: &Path) -> Result<(Option<RateLimit>, Option<RateLimit>), String> {
+    let credentials_path = home.join(".claude").join(".credentials.json");
+    let credentials: Value = serde_json::from_reader(
+        File::open(&credentials_path)
+            .map_err(|error| format!("Claude認証情報を開けませんでした: {error}"))?,
+    )
+    .map_err(|error| format!("Claude認証情報を解析できませんでした: {error}"))?;
+    let access_token = credentials
+        .pointer("/claudeAiOauth/accessToken")
+        .and_then(Value::as_str)
+        .ok_or("Claude OAuthアクセストークンが見つかりませんでした")?;
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(StdDuration::from_secs(10))
+        .user_agent("ai-dashboard/0.1.0")
+        .build()
+        .map_err(|error| format!("HTTPクライアントを作成できませんでした: {error}"))?;
+    let response = client
+        .get("https://api.anthropic.com/api/oauth/usage")
+        .bearer_auth(access_token)
+        .header("anthropic-beta", "oauth-2025-04-20")
+        .send()
+        .map_err(|error| format!("Claude使用率APIへ接続できませんでした: {error}"))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(if status == reqwest::StatusCode::UNAUTHORIZED {
+            "Claude OAuth認証の有効期限が切れています。Claude Codeで再ログインしてください。".into()
+        } else {
+            format!("Claude使用率APIがHTTP {status}を返しました")
+        });
+    }
+    let usage: Value = response
+        .json()
+        .map_err(|error| format!("Claude使用率APIの応答を解析できませんでした: {error}"))?;
+    Ok((
+        parse_claude_limit(&usage, "five_hour"),
+        parse_claude_limit(&usage, "seven_day"),
+    ))
 }
 
 fn collect_dashboard_data(bucket_count: usize) -> Result<DashboardData, String> {
@@ -339,24 +319,13 @@ fn collect_dashboard_data(bucket_count: usize) -> Result<DashboardData, String> 
     let codex = parse_codex(&home.join(".codex").join("sessions"), now, count);
     let claude_buckets = parse_claude(&home.join(".claude").join("projects"), now, count);
     let mut warnings = Vec::new();
-    let (usage_sender, usage_receiver) = mpsc::channel();
-    std::thread::spawn(move || {
-        let _ = usage_sender.send(read_claude_usage());
-    });
-    let (five_hour, weekly) = match usage_receiver.recv_timeout(StdDuration::from_secs(10)) {
-        Ok(Ok(limits)) => limits,
-        Err(_) => {
-            warnings.push("Claude /usageの取得が10秒以内に完了しませんでした。".into());
-            (None, None)
-        }
-        Ok(Err(error)) => {
-            warnings.push(format!("Claude /usageを取得できませんでした: {error}"));
+    let (five_hour, weekly) = match read_claude_limits(&home) {
+        Ok(limits) => limits,
+        Err(error) => {
+            warnings.push(error);
             (None, None)
         }
     };
-    if five_hour.is_none() || weekly.is_none() {
-        warnings.push("Claude /usageの上限使用率を解析できませんでした。Claude CLIの表示形式を確認してください。".into());
-    }
     Ok(DashboardData {
         codex,
         claude: ToolUsage {
@@ -378,15 +347,13 @@ async fn get_dashboard_data(bucket_count: usize) -> Result<DashboardData, String
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let mut builder = tauri::Builder::default();
+    let builder = tauri::Builder::default();
     #[cfg(debug_assertions)]
-    {
-        builder = builder.plugin(
-            tauri_plugin_mcp_bridge::Builder::new()
-                .bind_address("127.0.0.1")
-                .build(),
-        );
-    }
+    let builder = builder.plugin(
+        tauri_plugin_mcp_bridge::Builder::new()
+            .bind_address("127.0.0.1")
+            .build(),
+    );
     builder
         .invoke_handler(tauri::generate_handler![get_dashboard_data])
         .run(tauri::generate_context!())
@@ -409,10 +376,16 @@ mod tests {
     }
 
     #[test]
-    fn parses_claude_percentages() {
-        let text = "Current session\n42% used\nCurrent week (all models)\n67% used";
-        let (five, week) = parse_claude_usage(text);
-        assert_eq!(five.unwrap().used_percent, 42.0);
-        assert_eq!(week.unwrap().used_percent, 67.0);
+    fn parses_claude_oauth_limits() {
+        let usage = serde_json::json!({
+            "five_hour": {"utilization": 35.0, "resets_at": "2026-08-30T08:50:00+09:00"},
+            "seven_day": {"utilization": 99.0, "resets_at": "2026-08-31T00:00:00+09:00"}
+        });
+        let five = parse_claude_limit(&usage, "five_hour").unwrap();
+        let weekly = parse_claude_limit(&usage, "seven_day").unwrap();
+        assert_eq!(five.used_percent, 35.0);
+        assert_eq!(five.resets_at, Some(1_788_047_400));
+        assert_eq!(weekly.used_percent, 99.0);
+        assert_eq!(weekly.resets_at, Some(1_788_102_000));
     }
 }

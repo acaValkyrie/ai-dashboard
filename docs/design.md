@@ -97,10 +97,11 @@ Windowsデスクトップの接続情報:
 
 | 表示対象 | Codex CLI | Claude Code |
 |---|---|---|
-| 現在の5時間枠・週次枠 | JSONLの最新 `rate_limits` | Claude CLIをPTY起動し、`/usage` のTUI出力を解析 |
+| 現在の5時間枠・週次枠 | JSONLの最新 `rate_limits` | Claude Codeと同じ内部OAuth使用率API |
 | 直近5時間の10分ごとのトークン推移 | JSONLの `timestamp` と `last_token_usage` | JSONLの `timestamp` と `message.usage` |
 
 - Codexの `total_token_usage` はセッション内累積なので、時間推移には差分値の `last_token_usage` を使用する。
 - Claudeは同一API応答が複数行に記録される場合があるため、`message.id`、`requestId`、usage内容などで重複排除する。
 - 直近5時間のトークン推移は、単一デバイス上のローカルログだけを対象とする。別デバイスでの使用によるアカウント全体との差は許容し、同期・集約機能は作らない。
-- 現在の上限率はサーバーから各CLIへ返された値を使うため、トークン数から推定しない。
+- 現在の上限率はサーバーから各CLIへ返された値を使うため、トークン数から推定しない。Claude側のOAuth APIは非公開仕様のため、失敗時は警告を表示して空欄とする。
+- データは起動時と10分ごとに自動更新し、更新ボタンからも手動取得できるようにする。

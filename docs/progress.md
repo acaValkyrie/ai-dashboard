@@ -303,5 +303,5 @@ Grafana CloudにダッシュボードJSON（`dashboard/import`画面の「Import
 - トークン推移は現在時刻から遡る連続5時間区間へ集計し、Input、Output、Cache read、Cache write、Reasoningを積み上げ棒グラフで表示する。
 - CodexはJSONLの `last_token_usage` を使用し、再開ログ等に同じイベントが複製された場合の重複排除を行う。
 - Claudeは `message.id` または `requestId` で重複排除する。
-- Claudeの上限率取得は `portable-pty` でClaude CLIを起動し、`/usage` を送信してANSI除去後の表示を解析する。
+- Claudeの上限率取得用PTYがWindowsで残留し、`conhost.exe`のCPU使用率が累積する問題が判明したためPTY方式を廃止した。代わりにClaude Code自身が使う内部OAuth使用率APIを、保存済みアクセストークンで直接呼び出す方式へ変更した。
 - TypeScriptビルド、Rust単体テスト、Clippy、Tauriリリースビルド、Windowsでの短時間起動を確認済み。
