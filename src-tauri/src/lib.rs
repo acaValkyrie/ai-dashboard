@@ -5,6 +5,8 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+#[cfg(windows)]
+use std::process::Command;
 use std::time::Duration as StdDuration;
 use walkdir::WalkDir;
 
@@ -50,6 +52,7 @@ struct ToolUsage {
 struct DashboardData {
     codex: ToolUsage,
     claude: ToolUsage,
+    claude_login_required: bool,
     generated_at: String,
     warnings: Vec<String>,
 }
@@ -272,40 +275,69 @@ fn parse_claude_limit(usage: &Value, key: &str) -> Option<RateLimit> {
     })
 }
 
-fn read_claude_limits(home: &Path) -> Result<(Option<RateLimit>, Option<RateLimit>), String> {
+fn read_claude_limits(
+    home: &Path,
+) -> Result<(Option<RateLimit>, Option<RateLimit>), (String, bool)> {
     let credentials_path = home.join(".claude").join(".credentials.json");
     let credentials: Value = serde_json::from_reader(
         File::open(&credentials_path)
-            .map_err(|error| format!("Claude認証情報を開けませんでした: {error}"))?,
+            .map_err(|error| (format!("Claude認証情報を開けませんでした: {error}"), true))?,
     )
-    .map_err(|error| format!("Claude認証情報を解析できませんでした: {error}"))?;
+    .map_err(|error| {
+        (
+            format!("Claude認証情報を解析できませんでした: {error}"),
+            true,
+        )
+    })?;
     let access_token = credentials
         .pointer("/claudeAiOauth/accessToken")
         .and_then(Value::as_str)
-        .ok_or("Claude OAuthアクセストークンが見つかりませんでした")?;
+        .ok_or_else(|| {
+            (
+                "Claude OAuthアクセストークンが見つかりませんでした".into(),
+                true,
+            )
+        })?;
 
     let client = reqwest::blocking::Client::builder()
         .timeout(StdDuration::from_secs(10))
         .user_agent("ai-dashboard/0.1.0")
         .build()
-        .map_err(|error| format!("HTTPクライアントを作成できませんでした: {error}"))?;
+        .map_err(|error| {
+            (
+                format!("HTTPクライアントを作成できませんでした: {error}"),
+                false,
+            )
+        })?;
     let response = client
         .get("https://api.anthropic.com/api/oauth/usage")
         .bearer_auth(access_token)
         .header("anthropic-beta", "oauth-2025-04-20")
         .send()
-        .map_err(|error| format!("Claude使用率APIへ接続できませんでした: {error}"))?;
+        .map_err(|error| {
+            (
+                format!("Claude使用率APIへ接続できませんでした: {error}"),
+                false,
+            )
+        })?;
     let status = response.status();
     if !status.is_success() {
         return Err(if status == reqwest::StatusCode::UNAUTHORIZED {
-            "Claude OAuth認証の有効期限が切れています。Claude Codeで再ログインしてください。".into()
+            (
+                "Claude OAuth認証の有効期限が切れています。Claude Codeで再ログインしてください。"
+                    .into(),
+                true,
+            )
         } else {
-            format!("Claude使用率APIがHTTP {status}を返しました")
+            (format!("Claude使用率APIがHTTP {status}を返しました"), false)
         });
     }
-    let usage: Value = response
-        .json()
-        .map_err(|error| format!("Claude使用率APIの応答を解析できませんでした: {error}"))?;
+    let usage: Value = response.json().map_err(|error| {
+        (
+            format!("Claude使用率APIの応答を解析できませんでした: {error}"),
+            false,
+        )
+    })?;
     Ok((
         parse_claude_limit(&usage, "five_hour"),
         parse_claude_limit(&usage, "seven_day"),
@@ -319,9 +351,11 @@ fn collect_dashboard_data(bucket_count: usize) -> Result<DashboardData, String> 
     let codex = parse_codex(&home.join(".codex").join("sessions"), now, count);
     let claude_buckets = parse_claude(&home.join(".claude").join("projects"), now, count);
     let mut warnings = Vec::new();
+    let mut claude_login_required = false;
     let (five_hour, weekly) = match read_claude_limits(&home) {
         Ok(limits) => limits,
-        Err(error) => {
+        Err((error, login_required)) => {
+            claude_login_required = login_required;
             warnings.push(error);
             (None, None)
         }
@@ -333,6 +367,7 @@ fn collect_dashboard_data(bucket_count: usize) -> Result<DashboardData, String> 
             weekly,
             buckets: claude_buckets,
         },
+        claude_login_required,
         generated_at: now.to_rfc3339(),
         warnings,
     })
@@ -345,6 +380,37 @@ async fn get_dashboard_data(bucket_count: usize) -> Result<DashboardData, String
         .map_err(|error| format!("使用量データの収集処理に失敗しました: {error}"))?
 }
 
+#[tauri::command]
+async fn login_claude() -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+
+        const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+        tauri::async_runtime::spawn_blocking(|| {
+            let status = Command::new("powershell.exe")
+                .args(["-NoProfile", "-Command", "claude auth login"])
+                .creation_flags(CREATE_NEW_CONSOLE)
+                .status()
+                .map_err(|error| {
+                    format!("Claudeログイン用ターミナルを開けませんでした: {error}")
+                })?;
+            if status.success() {
+                Ok(())
+            } else {
+                Err(format!(
+                    "Claudeログインが終了コード {status} で終了しました"
+                ))
+            }
+        })
+        .await
+        .map_err(|error| format!("Claudeログイン処理に失敗しました: {error}"))?
+    }
+
+    #[cfg(not(windows))]
+    Err("Claudeログイン用ターミナルの起動はWindows版のみ対応しています".into())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
@@ -355,7 +421,7 @@ pub fn run() {
             .build(),
     );
     builder
-        .invoke_handler(tauri::generate_handler![get_dashboard_data])
+        .invoke_handler(tauri::generate_handler![get_dashboard_data, login_claude])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
 }

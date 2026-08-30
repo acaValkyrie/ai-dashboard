@@ -4,6 +4,7 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: #282c34; }
 button { font: inherit; }
 main { width: min(1320px, calc(100% - 64px)); margin: 0 auto; padding: 42px 0 64px; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
 h1, h2, h3, p { margin: 0; }
 h1 { font-size: 34px; letter-spacing: -0.04em; }
 h2 { font-size: 22px; margin-top: 4px; }
@@ -64,7 +65,8 @@ section { margin-top: 30px; }
   section { margin-top: 10px; }
   h2 { font-size: 17px; margin: 0; }
   .section-heading { gap: 10px; }
-  .refresh-button { padding: 6px 10px; font-size: 12px; }
+  .header-actions { gap: 5px; }
+  .refresh-button { padding: 6px 8px; font-size: 11px; }
   .notice { overflow: hidden; margin: 0 0 6px; padding: 6px 9px; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
   .gauge-card { flex-direction: row; align-items: center; gap: 7px; padding: 8px; border-radius: 10px; text-align: left; }

@@ -119,6 +119,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [loggingIn, setLoggingIn] = useState(false);
   const refreshing = useRef(false);
 
   const refresh = useCallback(async () => {
@@ -135,6 +136,20 @@ function App() {
       setLoading(false);
     }
   }, []);
+
+  const loginClaude = useCallback(async () => {
+    if (loggingIn) return;
+    setLoggingIn(true);
+    setError(null);
+    try {
+      await invoke("login_claude");
+      await refresh();
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setLoggingIn(false);
+    }
+  }, [loggingIn, refresh]);
 
   useEffect(() => {
     void refresh();
@@ -154,9 +169,16 @@ function App() {
       <section>
         <div className="section-heading">
           <h2>現在の上限使用率</h2>
-          <button className="refresh-button" onClick={() => void refresh()} disabled={loading}>
-            {loading ? "更新中…" : "更新"}
-          </button>
+          <div className="header-actions">
+            {data?.claudeLoginRequired && (
+              <button className="refresh-button" onClick={() => void loginClaude()} disabled={loggingIn}>
+                {loggingIn ? "ログイン中…" : "Claudeログイン"}
+              </button>
+            )}
+            <button className="refresh-button" onClick={() => void refresh()} disabled={loading}>
+              {loading ? "更新中…" : "更新"}
+            </button>
+          </div>
         </div>
         <div className="gauges">
           <Gauge title="Codex · 5時間" limit={data?.codex.fiveHour ?? null} period="five-hour" now={now} />

@@ -26,6 +26,7 @@ export type ToolUsage = {
 export type DashboardData = {
   codex: ToolUsage;
   claude: ToolUsage;
+  claudeLoginRequired: boolean;
   generatedAt: string;
   warnings: string[];
 };
