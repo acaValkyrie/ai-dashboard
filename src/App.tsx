@@ -3,11 +3,11 @@ import { invoke } from "@tauri-apps/api/core";
 import type { DashboardData, RateLimit, TokenValues, UsageBucket } from "./types";
 
 const SERIES: { key: keyof TokenValues; label: string; color: string }[] = [
-  { key: "input", label: "Input", color: "#60a5fa" },
-  { key: "output", label: "Output", color: "#f472b6" },
-  { key: "cacheRead", label: "Cache read", color: "#34d399" },
-  { key: "cacheWrite", label: "Cache write", color: "#fbbf24" },
-  { key: "reasoning", label: "Reasoning", color: "#a78bfa" },
+  { key: "input", label: "Input", color: "#61afef" },
+  { key: "output", label: "Output", color: "#e06c75" },
+  { key: "cacheRead", label: "Cache read", color: "#98c379" },
+  { key: "cacheWrite", label: "Cache write", color: "#e5c07b" },
+  { key: "reasoning", label: "Reasoning", color: "#c678dd" },
 ];
 
 const number = new Intl.NumberFormat("ja-JP", { notation: "compact", maximumFractionDigits: 1 });
@@ -15,7 +15,7 @@ const dateTime = new Intl.DateTimeFormat("ja-JP", { month: "short", day: "numeri
 
 function Gauge({ title, limit }: { title: string; limit: RateLimit | null }) {
   const value = Math.min(100, Math.max(0, limit?.usedPercent ?? 0));
-  const color = value >= 90 ? "#fb7185" : value >= 70 ? "#fbbf24" : "#38bdf8";
+  const color = value >= 90 ? "#e06c75" : value >= 70 ? "#e5c07b" : "#61afef";
   return (
     <article className="gauge-card">
       <div className="gauge">
@@ -130,14 +130,15 @@ function App() {
 
   return (
     <main>
-      <header>
-        <div><p className="eyebrow">LOCAL USAGE MONITOR</p><h1>AI Usage</h1></div>
-        <button onClick={() => void refresh()} disabled={loading}>{loading ? "更新中…" : "更新"}</button>
-      </header>
       {error && <div className="notice error">{error}</div>}
       {data?.warnings.map((warning) => <div className="notice" key={warning}>{warning}</div>)}
       <section>
-        <div className="section-heading"><div><p className="eyebrow">CURRENT LIMITS</p><h2>現在の上限使用率</h2></div></div>
+        <div className="section-heading">
+          <h2>現在の上限使用率</h2>
+          <button className="refresh-button" onClick={() => void refresh()} disabled={loading}>
+            {loading ? "更新中…" : "更新"}
+          </button>
+        </div>
         <div className="gauges">
           <Gauge title="Codex · 5時間" limit={data?.codex.fiveHour ?? null} />
           <Gauge title="Codex · 週次" limit={data?.codex.weekly ?? null} />
@@ -147,7 +148,7 @@ function App() {
       </section>
       <section className="chart-section">
         <div className="section-heading">
-          <div><p className="eyebrow">LAST 5 HOURS</p><h2>直近5時間のトークン使用量</h2></div>
+          <h2>直近5時間のトークン使用量</h2>
           <div className="tabs">
             <button className={selected === "codex" ? "active" : ""} onClick={() => setSelected("codex")}>Codex</button>
             <button className={selected === "claude" ? "active" : ""} onClick={() => setSelected("claude")}>Claude</button>

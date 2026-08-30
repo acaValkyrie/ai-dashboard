@@ -1,42 +1,88 @@
-:root { font-family: Inter, "Noto Sans JP", system-ui, sans-serif; color: #e5edf7; background: #0b111b; font-synthesis: none; }
+:root { font-family: Inter, "Noto Sans JP", system-ui, sans-serif; color: #abb2bf; background: #282c34; font-synthesis: none; }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 760px; min-height: 100vh; background: #0b111b; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: #282c34; }
 button { font: inherit; }
 main { width: min(1320px, calc(100% - 64px)); margin: 0 auto; padding: 42px 0 64px; }
-header, .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-header { margin-bottom: 42px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 h1, h2, h3, p { margin: 0; }
 h1 { font-size: 34px; letter-spacing: -0.04em; }
 h2 { font-size: 22px; margin-top: 4px; }
 h3 { font-size: 15px; }
-.eyebrow { color: #6f829b; font-size: 11px; font-weight: 700; letter-spacing: .16em; }
-header button, .tabs button { border: 1px solid #2b3b50; color: #b9c7d8; background: #121c2a; border-radius: 9px; padding: 9px 15px; cursor: pointer; }
-header button:hover, .tabs button:hover { border-color: #4b6687; color: white; }
-header button:disabled { opacity: .55; cursor: default; }
+.eyebrow { color: #5c6370; font-size: 11px; font-weight: 700; letter-spacing: .16em; }
+.refresh-button, .tabs button { border: 1px solid #3e4451; color: #abb2bf; background: #21252b; border-radius: 9px; padding: 9px 15px; cursor: pointer; }
+.refresh-button:hover, .tabs button:hover { border-color: #61afef; color: #d7dae0; }
+.refresh-button:disabled { opacity: .55; cursor: default; }
 section { margin-top: 30px; }
 .gauges { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 16px; }
-.gauge-card { min-width: 0; display: flex; align-items: center; gap: 17px; background: #111b29; border: 1px solid #1f3045; border-radius: 14px; padding: 20px; }
+.gauge-card { min-width: 0; display: flex; align-items: center; gap: 17px; background: #21252b; border: 1px solid #3e4451; border-radius: 14px; padding: 20px; }
 .gauge { position: relative; width: 82px; height: 82px; flex: 0 0 auto; }
 .gauge svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
 .gauge circle { fill: none; stroke-width: 8; }
-.gauge-track { stroke: #263244; }
+.gauge-track { stroke: #3e4451; }
 .gauge-value { stroke-linecap: butt; }
-.gauge-center { position: absolute; inset: 8px; border-radius: 50%; background: #111b29; display: grid; place-content: center; text-align: center; }
+.gauge-center { position: absolute; inset: 8px; border-radius: 50%; background: #21252b; display: grid; place-content: center; text-align: center; }
 .gauge-center strong { font-size: 22px; line-height: 1; }
-.gauge-center span { color: #71839a; font-size: 10px; margin-top: 5px; text-transform: uppercase; }
-.gauge-card p { color: #71839a; font-size: 12px; margin-top: 8px; }
-.chart-section { background: #111b29; border: 1px solid #1f3045; border-radius: 16px; padding: 24px; }
-.tabs { display: flex; background: #0d1520; border-radius: 10px; padding: 3px; }
+.gauge-center span { color: #5c6370; font-size: 10px; margin-top: 5px; text-transform: uppercase; }
+.gauge-card p { color: #7f848e; font-size: 12px; margin-top: 8px; }
+.chart-section { background: #21252b; border: 1px solid #3e4451; border-radius: 16px; padding: 24px; }
+.tabs { display: flex; background: #181a1f; border-radius: 10px; padding: 3px; }
 .tabs button { border: 0; background: transparent; padding: 7px 15px; }
-.tabs button.active { background: #24344a; color: white; }
+.tabs button.active { background: #3e4451; color: #d7dae0; }
 .chart-wrap { margin-top: 20px; }
 .chart { display: block; width: 100%; min-height: 280px; overflow: visible; }
-.grid-line { stroke: #263548; stroke-width: 1; }
-.axis-text { fill: #73859c; font-size: 11px; }
-.legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 18px; color: #8596ab; font-size: 12px; }
+.grid-line { stroke: #3e4451; stroke-width: 1; }
+.axis-text { fill: #7f848e; font-size: 11px; }
+.legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 18px; color: #7f848e; font-size: 12px; }
 .legend span { display: flex; align-items: center; gap: 6px; }
 .legend i { width: 8px; height: 8px; border-radius: 2px; }
-.footnote { text-align: right; color: #61738a; font-size: 11px; margin-top: 14px; }
-.notice { background: #302912; border: 1px solid #5c4d1d; color: #e8cc71; border-radius: 10px; padding: 11px 14px; margin: 10px 0; font-size: 13px; }
-.notice.error { background: #351a22; border-color: #743044; color: #f5a6b8; }
+.footnote { text-align: right; color: #5c6370; font-size: 11px; margin-top: 14px; }
+.notice { background: #2c313a; border: 1px solid #e5c07b; color: #e5c07b; border-radius: 10px; padding: 11px 14px; margin: 10px 0; font-size: 13px; }
+.notice.error { background: #2c313a; border-color: #e06c75; color: #e06c75; }
 @media (max-width: 1050px) { .gauges { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 620px) {
+  main { width: calc(100% - 32px); padding: 24px 0 40px; }
+  section { margin-top: 22px; }
+  h2 { font-size: 18px; }
+  .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .gauge-card { flex-direction: column; align-items: center; padding: 16px; text-align: center; }
+  .chart-section { padding: 16px; }
+  .chart-section .section-heading { align-items: stretch; flex-direction: column; gap: 12px; }
+  .tabs { align-self: flex-start; }
+  .chart-wrap { overflow-x: auto; padding-bottom: 6px; }
+  .chart { width: 620px; min-height: 240px; }
+  .legend { width: 620px; justify-content: flex-start; gap: 12px; }
+  .footnote { text-align: left; line-height: 1.5; }
+}
+@media (max-width: 380px) {
+  main { width: calc(100% - 24px); }
+  .section-heading { gap: 12px; }
+  .refresh-button { padding-inline: 12px; }
+}
+@media (max-width: 620px) and (max-height: 600px) {
+  body { overflow: hidden; }
+  main { width: calc(100% - 24px); padding: 12px 0; }
+  section { margin-top: 10px; }
+  h2 { font-size: 17px; margin: 0; }
+  .section-heading { gap: 10px; }
+  .refresh-button { padding: 6px 10px; font-size: 12px; }
+  .notice { overflow: hidden; margin: 0 0 6px; padding: 6px 9px; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .gauge-card { flex-direction: row; align-items: center; gap: 7px; padding: 8px; border-radius: 10px; text-align: left; }
+  .gauge { width: 54px; height: 54px; }
+  .gauge-center { inset: 6px; }
+  .gauge-center strong { font-size: 16px; }
+  .gauge-center span { margin-top: 2px; font-size: 8px; }
+  .gauge-card h3 { font-size: 12px; }
+  .gauge-card p { margin-top: 4px; font-size: 11px; line-height: 1.25; }
+  .chart-section { display: block; margin-top: 10px; padding: 10px; }
+  .chart-section .section-heading { align-items: center; flex-direction: row; gap: 8px; }
+  .chart-section h2 { font-size: 14px; }
+  .tabs { flex: 0 0 auto; }
+  .tabs button { padding: 4px 8px; font-size: 10px; }
+  .chart-wrap { margin-top: 6px; overflow: hidden; padding: 0; }
+  .chart { width: 100%; min-height: 140px; }
+  .legend { width: 100%; gap: 7px; font-size: 9px; }
+  .legend span { gap: 3px; }
+  .legend i { width: 6px; height: 6px; }
+  .footnote { display: none; }
+}
