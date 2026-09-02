@@ -26,11 +26,13 @@ function remainingTime(resetsAt: number, period: "five-hour" | "weekly", now: nu
   return `残り${Math.floor(minutes / 60)}時間${minutes % 60}分`;
 }
 
-function Gauge({ title, limit, period, now }: {
+function Gauge({ title, limit, period, now, showReset = true }: {
   title: string;
   limit: RateLimit | null;
   period: "five-hour" | "weekly";
   now: number;
+  /** false のときリセット時刻の行を表示しない(Antigravityは取得時点からの相対値で情報量が薄いため) */
+  showReset?: boolean;
 }) {
   const value = Math.min(100, Math.max(0, limit?.usedPercent ?? 0));
   const color = value >= 90 ? "#e06c75" : value >= 70 ? "#e5c07b" : "#61afef";
@@ -57,11 +59,12 @@ function Gauge({ title, limit, period, now }: {
       </div>
       <div>
         <h3>{title}</h3>
-        <p>{isStale
+        {showReset && <p>{isStale
           ? `リセット時刻（${dateTime.format(new Date(limit!.resetsAt! * 1000))}）を過ぎています（未使用のため未更新）`
           : limit?.resetsAt
           ? `リセット ${dateTime.format(new Date(limit.resetsAt * 1000))}（${remainingTime(limit.resetsAt, period, now)}）`
-          : limit ? "リセット時刻は未取得" : "データ待ち"}</p>
+          : limit ? "リセット時刻は未取得" : "データ待ち"}</p>}
+        {!showReset && !limit && <p>データ待ち</p>}
       </div>
     </article>
   );
@@ -195,8 +198,8 @@ function App() {
           <Gauge title="Claude · 週次" limit={data?.claude.weekly ?? null} period="weekly" now={now} />
           {data?.antigravity?.groups.map((group) => (
             <Fragment key={group.name}>
-              <Gauge title={`Antigravity ${shortGroupName(group.name)} · 5時間`} limit={group.fiveHour} period="five-hour" now={now} />
-              <Gauge title={`Antigravity ${shortGroupName(group.name)} · 週次`} limit={group.weekly} period="weekly" now={now} />
+              <Gauge title={`Antigravity ${shortGroupName(group.name)} · 5時間`} limit={group.fiveHour} period="five-hour" now={now} showReset={false} />
+              <Gauge title={`Antigravity ${shortGroupName(group.name)} · 週次`} limit={group.weekly} period="weekly" now={now} showReset={false} />
             </Fragment>
           ))}
         </div>
