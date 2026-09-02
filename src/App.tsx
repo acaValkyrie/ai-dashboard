@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { DashboardData, RateLimit, TokenValues, UsageBucket } from "./types";
 
@@ -13,6 +13,11 @@ const SERIES: { key: keyof TokenValues; label: string; color: string }[] = [
 const number = new Intl.NumberFormat("ja-JP", { notation: "compact", maximumFractionDigits: 1 });
 const dateTime = new Intl.DateTimeFormat("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
+/** "Gemini Models" → "Gemini"、"Claude and GPT models" → "Claude and GPT" */
+function shortGroupName(name: string) {
+  return name.replace(/\s+models?$/i, "");
+}
+
 function remainingTime(resetsAt: number, period: "five-hour" | "weekly", now: number) {
   const minutes = Math.max(0, Math.ceil((resetsAt * 1000 - now) / 60_000));
   if (period === "weekly" && minutes >= 24 * 60) {
@@ -21,11 +26,13 @@ function remainingTime(resetsAt: number, period: "five-hour" | "weekly", now: nu
   return `残り${Math.floor(minutes / 60)}時間${minutes % 60}分`;
 }
 
-function Gauge({ title, limit, period, now }: {
+function Gauge({ title, limit, period, now, showReset = true }: {
   title: string;
   limit: RateLimit | null;
   period: "five-hour" | "weekly";
   now: number;
+  /** false のときリセット時刻の行を表示しない(Antigravityは取得時点からの相対値で情報量が薄いため) */
+  showReset?: boolean;
 }) {
   const value = Math.min(100, Math.max(0, limit?.usedPercent ?? 0));
   const color = value >= 90 ? "#e06c75" : value >= 70 ? "#e5c07b" : "#61afef";
@@ -52,11 +59,12 @@ function Gauge({ title, limit, period, now }: {
       </div>
       <div>
         <h3>{title}</h3>
-        <p>{isStale
+        {showReset && <p>{isStale
           ? `リセット時刻（${dateTime.format(new Date(limit!.resetsAt! * 1000))}）を過ぎています（未使用のため未更新）`
           : limit?.resetsAt
           ? `リセット ${dateTime.format(new Date(limit.resetsAt * 1000))}（${remainingTime(limit.resetsAt, period, now)}）`
-          : limit ? "リセット時刻は未取得" : "データ待ち"}</p>
+          : limit ? "リセット時刻は未取得" : "データ待ち"}</p>}
+        {!showReset && !limit && <p>データ待ち</p>}
       </div>
     </article>
   );
@@ -183,11 +191,24 @@ function App() {
             </button>
           </div>
         </div>
-        <div className="gauges">
-          <Gauge title="Codex · 5時間" limit={data?.codex.fiveHour ?? null} period="five-hour" now={now} />
-          <Gauge title="Codex · 週次" limit={data?.codex.weekly ?? null} period="weekly" now={now} />
-          <Gauge title="Claude · 5時間" limit={data?.claude.fiveHour ?? null} period="five-hour" now={now} />
-          <Gauge title="Claude · 週次" limit={data?.claude.weekly ?? null} period="weekly" now={now} />
+        <div className="tool-columns">
+          <div className="tool-column">
+            <h3 className="tool-label">Codex</h3>
+            <Gauge title="5時間" limit={data?.codex.fiveHour ?? null} period="five-hour" now={now} />
+            <Gauge title="週次" limit={data?.codex.weekly ?? null} period="weekly" now={now} />
+          </div>
+          <div className="tool-column">
+            <h3 className="tool-label">Claude</h3>
+            <Gauge title="5時間" limit={data?.claude.fiveHour ?? null} period="five-hour" now={now} />
+            <Gauge title="週次" limit={data?.claude.weekly ?? null} period="weekly" now={now} />
+          </div>
+          {data?.antigravity?.groups.map((group) => (
+            <div className="tool-column" key={group.name}>
+              <h3 className="tool-label">Antigravity · {shortGroupName(group.name)}</h3>
+              <Gauge title="5時間" limit={group.fiveHour} period="five-hour" now={now} showReset={false} />
+              <Gauge title="週次" limit={group.weekly} period="weekly" now={now} showReset={false} />
+            </div>
+          ))}
         </div>
       </section>
       <section className="chart-section">
@@ -199,7 +220,10 @@ function App() {
           </div>
         </div>
         <StackedChart buckets={data?.[selected].buckets ?? []} />
-        <p className="footnote">直近5時間のローカルJSONLを、10分単位で集計しています。</p>
+        <p className="footnote">
+          直近5時間のローカルJSONLを、10分単位で集計しています。
+          {data?.antigravity && "Antigravityはローカルにトークン数の記録が無いため、グラフの対象外です。"}
+        </p>
       </section>
     </main>
   );
