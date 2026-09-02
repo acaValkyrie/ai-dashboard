@@ -14,5 +14,5 @@
     "windows": [{ "title": "AI Usage", "width": 1180, "height": 820, "minWidth": 360, "minHeight": 480 }],
     "security": { "csp": null }
   },
-  "bundle": { "active": false }
+  "bundle": { "active": true }
 }
