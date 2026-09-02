@@ -290,20 +290,70 @@ fn parse_claude_limit(usage: &Value, key: &str) -> Option<RateLimit> {
     })
 }
 
+/// Claude Codeの認証情報を読み込む。
+///
+/// Windows/Linuxでは`~/.claude/.credentials.json`に保存されるが、
+/// macOSではKeychainのサービス名`Claude Code-credentials`に同じJSONが保存される。
+/// ファイルがあればそれを優先し、無ければmacOSに限りKeychainへフォールバックする。
+fn load_claude_credentials(home: &Path) -> Result<Value, (String, bool)> {
+    let credentials_path = home.join(".claude").join(".credentials.json");
+    match File::open(&credentials_path) {
+        Ok(file) => serde_json::from_reader(file).map_err(|error| {
+            (
+                format!("Claude認証情報を解析できませんでした: {error}"),
+                true,
+            )
+        }),
+        Err(file_error) => {
+            #[cfg(target_os = "macos")]
+            {
+                if let Some(raw) = read_claude_credentials_from_keychain() {
+                    return serde_json::from_str(&raw).map_err(|error| {
+                        (
+                            format!("Keychain内のClaude認証情報を解析できませんでした: {error}"),
+                            true,
+                        )
+                    });
+                }
+                return Err((
+                    format!(
+                        "Claude認証情報が見つかりませんでした(ファイル: {file_error} / Keychain: 見つからず)。Claude Codeでログインしてください。"
+                    ),
+                    true,
+                ));
+            }
+            #[cfg(not(target_os = "macos"))]
+            Err((
+                format!("Claude認証情報を開けませんでした: {file_error}"),
+                true,
+            ))
+        }
+    }
+}
+
+/// macOSのKeychainからClaude Codeの認証情報JSONを取得する。
+#[cfg(target_os = "macos")]
+fn read_claude_credentials_from_keychain() -> Option<String> {
+    let output = Command::new("security")
+        .args(["find-generic-password", "-s", "Claude Code-credentials", "-w"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let raw = String::from_utf8(output.stdout).ok()?;
+    let raw = raw.trim();
+    if raw.is_empty() {
+        None
+    } else {
+        Some(raw.to_owned())
+    }
+}
+
 fn read_claude_limits(
     home: &Path,
 ) -> Result<(Option<RateLimit>, Option<RateLimit>), (String, bool)> {
-    let credentials_path = home.join(".claude").join(".credentials.json");
-    let credentials: Value = serde_json::from_reader(
-        File::open(&credentials_path)
-            .map_err(|error| (format!("Claude認証情報を開けませんでした: {error}"), true))?,
-    )
-    .map_err(|error| {
-        (
-            format!("Claude認証情報を解析できませんでした: {error}"),
-            true,
-        )
-    })?;
+    let credentials = load_claude_credentials(home)?;
     let access_token = credentials
         .pointer("/claudeAiOauth/accessToken")
         .and_then(Value::as_str)

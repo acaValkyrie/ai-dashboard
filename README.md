@@ -30,6 +30,7 @@ npm run tauri build
 - Claude: `~/.claude/projects/**/*.jsonl`
 - Claudeの現在の上限率: Claude Codeと同じ内部OAuth使用率API（非公開仕様）から取得
 - Antigravity: `agy -p /quota --output-format json` の出力(PATHまたは `~/.local/bin/agy` を探索)。`agy` が無い環境ではAntigravityの表示自体を省略。ローカルにトークン数の記録が無いためグラフは非対応
+- Claudeの認証情報: `~/.claude/.credentials.json` を優先し、無ければmacOSではKeychain(サービス名 `Claude Code-credentials`)から読み取り
 
 トークン数はモデルやサービス間で同一尺度ではありません。グラフは各ツール内の推移を見るためのもので、契約上限との比較には上部の円形ゲージを使用します。
 
