@@ -29,6 +29,7 @@ function Gauge({ title, limit, period, now }: {
 }) {
   const value = Math.min(100, Math.max(0, limit?.usedPercent ?? 0));
   const color = value >= 90 ? "#e06c75" : value >= 70 ? "#e5c07b" : "#61afef";
+  const isStale = !!limit?.resetsAt && limit.resetsAt * 1000 <= now;
   return (
     <article className="gauge-card">
       <div className="gauge">
@@ -45,13 +46,15 @@ function Gauge({ title, limit, period, now }: {
           />
         </svg>
         <div className="gauge-center">
-          <strong>{limit ? `${Math.round(value)}%` : "—"}</strong>
-          <span>used</span>
+          <strong>{isStale ? "—" : limit ? `${Math.round(value)}%` : "—"}</strong>
+          <span>{isStale ? "未更新" : "used"}</span>
         </div>
       </div>
       <div>
         <h3>{title}</h3>
-        <p>{limit?.resetsAt
+        <p>{isStale
+          ? `リセット時刻（${dateTime.format(new Date(limit!.resetsAt! * 1000))}）を過ぎています（未使用のため未更新）`
+          : limit?.resetsAt
           ? `リセット ${dateTime.format(new Date(limit.resetsAt * 1000))}（${remainingTime(limit.resetsAt, period, now)}）`
           : limit ? "リセット時刻は未取得" : "データ待ち"}</p>
       </div>
