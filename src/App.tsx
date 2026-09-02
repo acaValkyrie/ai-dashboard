@@ -171,7 +171,7 @@ function App() {
       {data?.warnings.map((warning) => <div className="notice" key={warning}>{warning}</div>)}
       <section>
         <div className="section-heading">
-          <h2>現在の上限使用率</h2>
+          <h2>現在の上限使用率（アカウント全体）</h2>
           <div className="header-actions">
             {data?.claudeLoginRequired && (
               <button className="refresh-button" onClick={() => void loginClaude()} disabled={loggingIn}>
@@ -192,7 +192,7 @@ function App() {
       </section>
       <section className="chart-section">
         <div className="section-heading">
-          <h2>直近5時間のトークン使用量</h2>
+          <h2>直近5時間のトークン使用量（この端末のみ）</h2>
           <div className="tabs">
             <button className={selected === "codex" ? "active" : ""} onClick={() => setSelected("codex")}>Codex</button>
             <button className={selected === "claude" ? "active" : ""} onClick={() => setSelected("claude")}>Claude</button>
