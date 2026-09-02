@@ -5,7 +5,6 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-#[cfg(windows)]
 use std::process::Command;
 use std::time::Duration as StdDuration;
 use walkdir::WalkDir;
@@ -407,8 +406,62 @@ async fn login_claude() -> Result<(), String> {
         .map_err(|error| format!("Claudeログイン処理に失敗しました: {error}"))?
     }
 
-    #[cfg(not(windows))]
-    Err("Claudeログイン用ターミナルの起動はWindows版のみ対応しています".into())
+    #[cfg(target_os = "macos")]
+    {
+        tauri::async_runtime::spawn_blocking(|| {
+            let status = Command::new("osascript")
+                .args([
+                    "-e",
+                    "tell application \"Terminal\" to do script \"claude auth login\"",
+                ])
+                .status()
+                .map_err(|error| {
+                    format!("Claudeログイン用ターミナルを開けませんでした: {error}")
+                })?;
+            if status.success() {
+                Ok(())
+            } else {
+                Err(format!(
+                    "Claudeログイン用ターミナルの起動に失敗しました（終了コード {status}）"
+                ))
+            }
+        })
+        .await
+        .map_err(|error| format!("Claudeログイン処理に失敗しました: {error}"))?
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        tauri::async_runtime::spawn_blocking(|| {
+            const CANDIDATES: &[(&str, &[&str])] = &[
+                ("x-terminal-emulator", &["-e", "claude auth login"]),
+                ("gnome-terminal", &["--", "bash", "-lc", "claude auth login"]),
+                ("konsole", &["-e", "bash", "-lc", "claude auth login"]),
+                (
+                    "xfce4-terminal",
+                    &["-x", "bash", "-lc", "claude auth login"],
+                ),
+                ("xterm", &["-e", "bash", "-lc", "claude auth login"]),
+            ];
+            for (program, args) in CANDIDATES {
+                match Command::new(program).args(*args).status() {
+                    Ok(status) if status.success() => return Ok(()),
+                    Ok(status) => {
+                        return Err(format!(
+                            "Claudeログインが終了コード {status} で終了しました"
+                        ));
+                    }
+                    Err(_) => continue,
+                }
+            }
+            Err("利用可能なターミナルエミュレータが見つかりませんでした".into())
+        })
+        .await
+        .map_err(|error| format!("Claudeログイン処理に失敗しました: {error}"))?
+    }
+
+    #[cfg(not(any(windows, unix)))]
+    Err("Claudeログイン用ターミナルの起動はこのOSでは対応していません".into())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
