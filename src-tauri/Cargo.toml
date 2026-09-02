@@ -1,6 +1,6 @@
 [package]
 name = "ai-dashboard"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local Claude Code and Codex CLI usage dashboard"
 authors = ["acaValkyrie"]
 edition = "2021"
