@@ -48,9 +48,25 @@ struct ToolUsage {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+struct AntigravityGroup {
+    name: String,
+    five_hour: Option<RateLimit>,
+    weekly: Option<RateLimit>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AntigravityUsage {
+    groups: Vec<AntigravityGroup>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DashboardData {
     codex: ToolUsage,
     claude: ToolUsage,
+    /// Antigravity CLI(`agy`)が見つからない場合は`None`。
+    antigravity: Option<AntigravityUsage>,
     claude_login_required: bool,
     generated_at: String,
     warnings: Vec<String>,
@@ -343,10 +359,128 @@ fn read_claude_limits(
     ))
 }
 
+/// Antigravity CLI(`agy`)の実行ファイルを探す。
+///
+/// GUIアプリから起動されるとシェルのPATHが引き継がれないことがあるため、
+/// PATHに加えて既定のインストール先(`~/.local/bin`)も候補に含める。
+fn find_antigravity_cli(home: &Path) -> Option<PathBuf> {
+    let names: &[&str] = if cfg!(windows) {
+        &["agy.exe", "agy.cmd", "agy"]
+    } else {
+        &["agy"]
+    };
+    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH")
+        .map(|path| std::env::split_paths(&path).collect())
+        .unwrap_or_default();
+    dirs.push(home.join(".local").join("bin"));
+    dirs.into_iter()
+        .flat_map(|dir| names.iter().map(move |name| dir.join(name)))
+        .find(|candidate| candidate.is_file())
+}
+
+/// `agy -p /quota --output-format json` の出力から上限率を取り出す。
+///
+/// 出力は `command.data.groups[]` にモデルグループ(Gemini / Claude+GPT)が並び、
+/// 各グループの `buckets[]` に `window`("5h" | "weekly")、`remaining_fraction`、
+/// `reset_time`(RFC3339)が入っている。
+fn parse_antigravity_quota(value: &Value) -> Vec<AntigravityGroup> {
+    let Some(groups) = value
+        .pointer("/command/data/groups")
+        .and_then(Value::as_array)
+    else {
+        return Vec::new();
+    };
+    groups
+        .iter()
+        .filter_map(|group| {
+            let name = group.get("name")?.as_str()?.to_owned();
+            let mut five_hour = None;
+            let mut weekly = None;
+            for bucket in group
+                .get("buckets")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let Some(remaining) = bucket.get("remaining_fraction").and_then(Value::as_f64)
+                else {
+                    continue;
+                };
+                let limit = RateLimit {
+                    used_percent: ((1.0 - remaining) * 100.0).clamp(0.0, 100.0),
+                    resets_at: bucket
+                        .get("reset_time")
+                        .and_then(Value::as_str)
+                        .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+                        .map(|value| value.timestamp()),
+                    source: "Antigravity CLI /quota".into(),
+                };
+                match bucket.get("window").and_then(Value::as_str) {
+                    Some("5h") => five_hour = Some(limit),
+                    Some("weekly") => weekly = Some(limit),
+                    _ => {}
+                }
+            }
+            Some(AntigravityGroup {
+                name,
+                five_hour,
+                weekly,
+            })
+        })
+        .collect()
+}
+
+fn read_antigravity_limits(cli: &Path) -> Result<Vec<AntigravityGroup>, String> {
+    let mut command = Command::new(cli);
+    command.args(["-p", "/quota", "--output-format", "json"]);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = command
+        .output()
+        .map_err(|error| format!("Antigravity CLIを実行できませんでした: {error}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let detail = stderr.lines().last().unwrap_or("").trim();
+        return Err(format!(
+            "Antigravity CLIが上限率を返しませんでした({}): {detail}",
+            output.status
+        ));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // 前後にログ行が混ざる可能性に備え、JSONオブジェクトの行だけを探す。
+    let json_line = stdout
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with('{'))
+        .ok_or_else(|| "Antigravity CLIの出力にJSONが含まれていませんでした".to_owned())?;
+    let value: Value = serde_json::from_str(json_line)
+        .map_err(|error| format!("Antigravity CLIの出力を解析できませんでした: {error}"))?;
+    if value.get("status").and_then(Value::as_str) != Some("SUCCESS") {
+        return Err(format!(
+            "Antigravity CLIがエラーを返しました: {}",
+            value
+                .get("response")
+                .and_then(Value::as_str)
+                .unwrap_or("詳細不明")
+                .trim()
+        ));
+    }
+    Ok(parse_antigravity_quota(&value))
+}
+
 fn collect_dashboard_data(bucket_count: usize) -> Result<DashboardData, String> {
     let count = bucket_count.clamp(1, 90);
     let home = dirs::home_dir().ok_or("ホームディレクトリを取得できませんでした")?;
     let now = Utc::now();
+    // Antigravity CLIは応答に数秒かかるため、他の集計と並行して実行する。
+    let antigravity_task = std::thread::spawn({
+        let home = home.clone();
+        move || find_antigravity_cli(&home).map(|cli| read_antigravity_limits(&cli))
+    });
     let codex = parse_codex(&home.join(".codex").join("sessions"), now, count);
     let claude_buckets = parse_claude(&home.join(".claude").join("projects"), now, count);
     let mut warnings = Vec::new();
@@ -359,6 +493,18 @@ fn collect_dashboard_data(bucket_count: usize) -> Result<DashboardData, String> 
             (None, None)
         }
     };
+    let antigravity = match antigravity_task.join() {
+        Ok(None) => None,
+        Ok(Some(Ok(groups))) => Some(AntigravityUsage { groups }),
+        Ok(Some(Err(error))) => {
+            warnings.push(error);
+            Some(AntigravityUsage { groups: Vec::new() })
+        }
+        Err(_) => {
+            warnings.push("Antigravityの上限率取得処理が異常終了しました".into());
+            None
+        }
+    };
     Ok(DashboardData {
         codex,
         claude: ToolUsage {
@@ -366,6 +512,7 @@ fn collect_dashboard_data(bucket_count: usize) -> Result<DashboardData, String> 
             weekly,
             buckets: claude_buckets,
         },
+        antigravity,
         claude_login_required,
         generated_at: now.to_rfc3339(),
         warnings,
@@ -492,6 +639,33 @@ mod tests {
         assert_eq!(result.cache_read, 30);
         assert_eq!(result.cache_write, 10);
         assert_eq!(result.reasoning, 5);
+    }
+
+    #[test]
+    fn parses_antigravity_quota_groups() {
+        let output = serde_json::json!({
+            "status": "SUCCESS",
+            "command": {"name": "usage", "data": {"groups": [
+                {"name": "Gemini Models", "buckets": [
+                    {"id": "gemini-weekly", "window": "weekly", "remaining_fraction": 0.25, "reset_time": "2026-09-09T14:09:30Z"},
+                    {"id": "gemini-5h", "window": "5h", "remaining_fraction": 1, "reset_time": "2026-09-02T19:09:30Z"}
+                ]},
+                {"name": "Claude and GPT models", "buckets": [
+                    {"id": "3p-weekly", "window": "weekly", "remaining_fraction": 0.0}
+                ]}
+            ]}}
+        });
+        let groups = parse_antigravity_quota(&output);
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].name, "Gemini Models");
+        let weekly = groups[0].weekly.as_ref().unwrap();
+        assert_eq!(weekly.used_percent, 75.0);
+        assert_eq!(weekly.resets_at, Some(1_788_962_970));
+        assert_eq!(groups[0].five_hour.as_ref().unwrap().used_percent, 0.0);
+        assert_eq!(groups[1].weekly.as_ref().unwrap().used_percent, 100.0);
+        assert!(groups[1].weekly.as_ref().unwrap().resets_at.is_none());
+        assert!(groups[1].five_hour.is_none());
+        assert!(parse_antigravity_quota(&serde_json::json!({})).is_empty());
     }
 
     #[test]

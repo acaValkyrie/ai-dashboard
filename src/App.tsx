@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { DashboardData, RateLimit, TokenValues, UsageBucket } from "./types";
 
@@ -12,6 +12,11 @@ const SERIES: { key: keyof TokenValues; label: string; color: string }[] = [
 
 const number = new Intl.NumberFormat("ja-JP", { notation: "compact", maximumFractionDigits: 1 });
 const dateTime = new Intl.DateTimeFormat("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+/** "Gemini Models" → "Gemini"、"Claude and GPT models" → "Claude and GPT" */
+function shortGroupName(name: string) {
+  return name.replace(/\s+models?$/i, "");
+}
 
 function remainingTime(resetsAt: number, period: "five-hour" | "weekly", now: number) {
   const minutes = Math.max(0, Math.ceil((resetsAt * 1000 - now) / 60_000));
@@ -188,6 +193,12 @@ function App() {
           <Gauge title="Codex · 週次" limit={data?.codex.weekly ?? null} period="weekly" now={now} />
           <Gauge title="Claude · 5時間" limit={data?.claude.fiveHour ?? null} period="five-hour" now={now} />
           <Gauge title="Claude · 週次" limit={data?.claude.weekly ?? null} period="weekly" now={now} />
+          {data?.antigravity?.groups.map((group) => (
+            <Fragment key={group.name}>
+              <Gauge title={`Antigravity ${shortGroupName(group.name)} · 5時間`} limit={group.fiveHour} period="five-hour" now={now} />
+              <Gauge title={`Antigravity ${shortGroupName(group.name)} · 週次`} limit={group.weekly} period="weekly" now={now} />
+            </Fragment>
+          ))}
         </div>
       </section>
       <section className="chart-section">
@@ -199,7 +210,10 @@ function App() {
           </div>
         </div>
         <StackedChart buckets={data?.[selected].buckets ?? []} />
-        <p className="footnote">直近5時間のローカルJSONLを、10分単位で集計しています。</p>
+        <p className="footnote">
+          直近5時間のローカルJSONLを、10分単位で集計しています。
+          {data?.antigravity && "Antigravityはローカルにトークン数の記録が無いため、グラフの対象外です。"}
+        </p>
       </section>
     </main>
   );
