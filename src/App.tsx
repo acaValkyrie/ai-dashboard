@@ -191,16 +191,23 @@ function App() {
             </button>
           </div>
         </div>
-        <div className="gauges">
-          <Gauge title="Codex · 5時間" limit={data?.codex.fiveHour ?? null} period="five-hour" now={now} />
-          <Gauge title="Codex · 週次" limit={data?.codex.weekly ?? null} period="weekly" now={now} />
-          <Gauge title="Claude · 5時間" limit={data?.claude.fiveHour ?? null} period="five-hour" now={now} />
-          <Gauge title="Claude · 週次" limit={data?.claude.weekly ?? null} period="weekly" now={now} />
+        <div className="tool-columns">
+          <div className="tool-column">
+            <h3 className="tool-label">Codex</h3>
+            <Gauge title="5時間" limit={data?.codex.fiveHour ?? null} period="five-hour" now={now} />
+            <Gauge title="週次" limit={data?.codex.weekly ?? null} period="weekly" now={now} />
+          </div>
+          <div className="tool-column">
+            <h3 className="tool-label">Claude</h3>
+            <Gauge title="5時間" limit={data?.claude.fiveHour ?? null} period="five-hour" now={now} />
+            <Gauge title="週次" limit={data?.claude.weekly ?? null} period="weekly" now={now} />
+          </div>
           {data?.antigravity?.groups.map((group) => (
-            <Fragment key={group.name}>
-              <Gauge title={`Antigravity ${shortGroupName(group.name)} · 5時間`} limit={group.fiveHour} period="five-hour" now={now} showReset={false} />
-              <Gauge title={`Antigravity ${shortGroupName(group.name)} · 週次`} limit={group.weekly} period="weekly" now={now} showReset={false} />
-            </Fragment>
+            <div className="tool-column" key={group.name}>
+              <h3 className="tool-label">Antigravity · {shortGroupName(group.name)}</h3>
+              <Gauge title="5時間" limit={group.fiveHour} period="five-hour" now={now} showReset={false} />
+              <Gauge title="週次" limit={group.weekly} period="weekly" now={now} showReset={false} />
+            </div>
           ))}
         </div>
       </section>
