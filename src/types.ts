@@ -23,9 +23,21 @@ export type ToolUsage = {
   buckets: UsageBucket[];
 };
 
+export type AntigravityGroup = {
+  name: string;
+  fiveHour: RateLimit | null;
+  weekly: RateLimit | null;
+};
+
+export type AntigravityUsage = {
+  groups: AntigravityGroup[];
+};
+
 export type DashboardData = {
   codex: ToolUsage;
   claude: ToolUsage;
+  /** Antigravity CLI(agy)が見つからない環境では null */
+  antigravity: AntigravityUsage | null;
   claudeLoginRequired: boolean;
   generatedAt: string;
   warnings: string[];
