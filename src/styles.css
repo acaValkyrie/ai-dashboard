@@ -14,8 +14,8 @@ h3 { font-size: 15px; }
 .refresh-button:hover, .tabs button:hover { border-color: #61afef; color: #d7dae0; }
 .refresh-button:disabled { opacity: .55; cursor: default; }
 section { margin-top: 30px; }
-.tool-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 16px; }
-.tool-column { display: grid; gap: 10px; align-content: start; }
+.tool-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); grid-template-rows: repeat(3, auto); gap: 14px; margin-top: 16px; }
+.tool-column { display: grid; grid-template-rows: subgrid; grid-row: span 3; gap: 10px; align-content: start; }
 .tool-label { color: #d7dae0; font-size: 14px; letter-spacing: .02em; padding-left: 4px; }
 .gauge-card { min-width: 0; display: flex; align-items: center; gap: 17px; background: #21252b; border: 1px solid #3e4451; border-radius: 14px; padding: 20px; }
 .gauge { position: relative; width: 82px; height: 82px; flex: 0 0 auto; }
